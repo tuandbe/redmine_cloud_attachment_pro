@@ -9,7 +9,7 @@ namespace :attachments do
 
       # Skip if already prefixed or not stored in S3
       next if attachment.disk_filename.start_with?("s3_")
-      next unless Redmine::Configuration["storage"] == "s3"
+      next unless Redmine::Configuration["storage"].to_s == "s3"
 
       attachment.update_column(:disk_filename, "s3_#{attachment.disk_filename}")
       updated += 1
