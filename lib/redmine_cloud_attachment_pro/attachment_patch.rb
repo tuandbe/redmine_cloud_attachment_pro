@@ -1,7 +1,7 @@
 require 'aws-sdk-s3'
 require_dependency 'attachment'
 
-module RedmineS3AttachmentStore
+module RedmineCloudAttachmentPro
   module AttachmentPatch
     def self.included(base)
       base.class_eval do
@@ -127,4 +127,6 @@ module RedmineS3AttachmentStore
   end
 end
 
-Attachment.include RedmineS3AttachmentStore::AttachmentPatch
+Rails.configuration.to_prepare do
+  Attachment.include RedmineCloudAttachmentPro::AttachmentPatch unless Attachment.included_modules.include?(RedmineCloudAttachmentPro::AttachmentPatch)
+end
