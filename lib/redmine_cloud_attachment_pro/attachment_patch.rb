@@ -127,6 +127,4 @@ module RedmineCloudAttachmentPro
   end
 end
 
-Rails.configuration.to_prepare do
-  Attachment.include RedmineCloudAttachmentPro::AttachmentPatch unless Attachment.included_modules.include?(RedmineCloudAttachmentPro::AttachmentPatch)
-end
+Attachment.include RedmineCloudAttachmentPro::AttachmentPatch unless Attachment.included_modules.include?(RedmineCloudAttachmentPro::AttachmentPatch)
