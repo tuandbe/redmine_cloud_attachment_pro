@@ -12,7 +12,10 @@ module RedmineCloudAttachmentPro
         end
 
         def files_to_final_location
+          Rails.logger.info("[S3] files to final location")
           return unless @temp_file
+
+          Rails.logger.info("[S3] files to final location #{storage_backend}")
 
           sha = Digest::SHA256.new
           content = read_temp_file(@temp_file, sha)
@@ -20,6 +23,7 @@ module RedmineCloudAttachmentPro
           if storage_backend == :s3
             upload_to_s3(content)
           else
+            Rails.logger.info("[S3] files to final location #{storage_backend} - local case")
             save_locally(content)
           end
 
@@ -68,6 +72,8 @@ module RedmineCloudAttachmentPro
           filename_for_s3 = disk_filename.presence || "#{SecureRandom.hex}_#{filename}"
           s3_key = File.join(s3_base_path, created_on.strftime('%Y/%m'), filename_for_s3)
 
+          Rails.logger.info("[S3] upload_to_s3 #{s3_key}")
+
           s3_client.put_object(bucket: s3_bucket, key: s3_key, body: content)
 
           self.disk_filename = "s3_#{File.basename(s3_key)}"
@@ -104,6 +110,7 @@ module RedmineCloudAttachmentPro
         end
 
         def s3_client
+          Rails.logger.info("[S3] s3_client #{s3_config}")
           @s3_client ||= Aws::S3::Client.new(
             access_key_id: s3_config['access_key_id'],
             secret_access_key: s3_config['secret_access_key'],
