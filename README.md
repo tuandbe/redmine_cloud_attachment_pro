@@ -66,10 +66,15 @@ Ruby 3.x and Rails 6.x or later
 AWS SDK v3
 
 🚀 Roadmap
+
 ✅ Amazon S3 Support
+
 ⏳ Google Cloud Storage Support
+
 ⏳ Microsoft Azure Blob Support
+
 ⏳ Web UI for configuring storage
+
 📁 Plugin Installation
 
 Clone into Redmine's plugin directory:
