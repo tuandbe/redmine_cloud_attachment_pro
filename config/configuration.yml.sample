@@ -1,0 +1,12 @@
+development:
+  storage: :local
+
+production:
+  storage: :s3
+  s3:
+    enabled: true
+    access_key_id: <%= ENV["AWS_ACCESS_KEY"] %>
+    secret_access_key: <%= ENV["AWS_SECRET_KEY"] %>
+    bucket: <%= ENV["REDMINE_FILES_ATTACHEMENT_S3_BUCKET"] %>
+    region: <%= ENV["AWS_REGION"] %>
+    path: <%= ENV["AWS_PATH"] %>
