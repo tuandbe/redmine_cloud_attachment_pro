@@ -20,16 +20,7 @@ module RedmineCloudAttachmentPro
           content = read_temp_file(@temp_file, sha)
           self.disk_directory = target_directory
 
-          case storage_backend
-          when :s3
-            upload_to_s3(content)
-          when :gcs
-            upload_to_gcs(content)
-          when :azure
-            upload_to_azure(content)
-          else
-            save_locally(content)
-          end
+          upload_content(content)
 
           self.digest = sha.hexdigest
           @temp_file = nil
@@ -38,84 +29,79 @@ module RedmineCloudAttachmentPro
         end
 
         def diskfile
-          return local_diskfile unless disk_filename.to_s.start_with?("s3_") || disk_filename.to_s.start_with?("gcs_") || disk_filename.to_s.start_with?("azure_")
+          return local_diskfile unless cloud_diskfile?
 
-          begin
-            prefix = disk_filename.split('_').first + '_'
-            key = File.join(cloud_base_path, disk_directory.to_s, disk_filename.sub(prefix, ""))
-
-            tmp = Tempfile.new(["redmine", File.extname(key)])
+          Tempfile.create(["redmine", File.extname(cloud_key)]).tap do |tmp|
             tmp.binmode
-
-            case storage_backend
-            when :s3
-              s3_client.get_object(bucket: s3_bucket, key: key) { |chunk| tmp.write(chunk) }
-            when :gcs
-              file = gcs_bucket.file(key)
-              file.download(tmp.path) if file
-            when :azure
-              blob, content = azure_blob_client.get_blob(azure_container, key)
-              tmp.write(content)
+            begin
+              download_from_cloud(tmp)
+              tmp.rewind
+            rescue => e
+              Rails.logger.error("[CloudAttachmentPro] Fallback to local: #{e.message}")
+              return local_diskfile
             end
-
-            tmp.rewind
-            tmp.path
-          rescue => e
-            Rails.logger.error("[CloudAttachmentPro] Fallback to local: #{e.message}")
-            local_diskfile
-          end
+          end.path
         end
 
         def delete_from_cloud
-          return unless disk_filename.to_s =~ /^(s3|gcs|azure)_/
-
-          prefix = disk_filename.split('_').first + '_'
-          key = File.join(cloud_base_path, disk_directory.to_s, disk_filename.sub(prefix, ""))
+          return unless cloud_diskfile?
 
           begin
-            case storage_backend
-            when :s3
-              s3_client.delete_object(bucket: s3_bucket, key: key)
-              Rails.logger.info("[S3] Deleted #{key}")
-            when :gcs
-              file = gcs_bucket.file(key)
-              file&.delete
-              Rails.logger.info("[GCS] Deleted #{key}")
-            when :azure
-              azure_blob_client.delete_blob(azure_container, key)
-              Rails.logger.info("[Azure] Deleted #{key}")
-            end
+            delete_from_backend(cloud_key)
           rescue => e
-            Rails.logger.error("[CloudAttachmentPro] Failed to delete #{key}: #{e.message}")
+            Rails.logger.error("[CloudAttachmentPro] Failed to delete #{cloud_key}: #{e.message}")
           end
         end
 
         private
 
-        def upload_to_s3(content)
-          filename = disk_filename.presence || "#{SecureRandom.hex}_#{self.filename}"
-          key = File.join(cloud_base_path, created_on.strftime('%Y/%m'), filename)
-          s3_client.put_object(bucket: s3_bucket, key: key, body: content)
-          self.disk_filename = "s3_#{File.basename(key)}"
+        def upload_content(content)
+          key = cloud_key
+
+          case storage_backend
+          when :s3
+            s3_client.put_object(bucket: s3_bucket, key: key, body: content)
+          when :gcs
+            gcs_bucket.create_file(StringIO.new(content), key)
+          when :azure
+            azure_blob_client.create_block_blob(azure_container, key, content)
+          else
+            save_locally(content)
+            return
+          end
+
+          self.disk_filename = "#{storage_backend}_#{File.basename(key)}"
         end
 
-        def upload_to_gcs(content)
-          filename = disk_filename.presence || "#{SecureRandom.hex}_#{self.filename}"
-          key = File.join(cloud_base_path, created_on.strftime('%Y/%m'), filename)
-          gcs_bucket.create_file(StringIO.new(content), key)
-          self.disk_filename = "gcs_#{File.basename(key)}"
+        def download_from_cloud(tmp)
+          case storage_backend
+          when :s3
+            s3_client.get_object(bucket: s3_bucket, key: cloud_key) { |chunk| tmp.write(chunk) }
+          when :gcs
+            gcs_bucket.file(cloud_key)&.download(tmp.path)
+          when :azure
+            _, content = azure_blob_client.get_blob(azure_container, cloud_key)
+            tmp.write(content)
+          end
         end
 
-        def upload_to_azure(content)
-          filename = disk_filename.presence || "#{SecureRandom.hex}_#{self.filename}"
-          key = File.join(cloud_base_path, created_on.strftime('%Y/%m'), filename)
-          azure_blob_client.create_block_blob(azure_container, key, content)
-          self.disk_filename = "azure_#{File.basename(key)}"
+        def delete_from_backend(key)
+          case storage_backend
+          when :s3
+            s3_client.delete_object(bucket: s3_bucket, key: key)
+            Rails.logger.info("[S3] Deleted #{key}")
+          when :gcs
+            gcs_bucket.file(key)&.delete
+            Rails.logger.info("[GCS] Deleted #{key}")
+          when :azure
+            azure_blob_client.delete_blob(azure_container, key)
+            Rails.logger.info("[Azure] Deleted #{key}")
+          end
         end
 
         def save_locally(content)
           Attachment.create_diskfile(filename, disk_directory) do |f|
-            self.disk_filename = File.basename f.path
+            self.disk_filename = File.basename(f.path)
             f.write(content)
           end
         end
@@ -133,8 +119,30 @@ module RedmineCloudAttachmentPro
           content
         end
 
+        def cloud_filename
+          disk_filename.presence || "#{SecureRandom.hex}_#{filename}"
+        end
+
+        def cloud_key
+          prefix = "#{storage_backend}_"
+          key = File.join(cloud_base_path, created_on.strftime('%Y/%m'), cloud_filename)
+          cloud_diskfile? ? key.sub(/#{prefix}/, '') : key
+        end
+
         def local_diskfile
           File.join(self.class.storage_path, disk_directory.to_s, disk_filename.to_s)
+        end
+
+        def cloud_diskfile?
+          disk_filename.to_s.match?(/^(s3|gcs|azure)_[^_]+_/)
+        end
+
+        def cloud_config
+          Redmine::Configuration[storage_backend.to_s] || {}
+        end
+
+        def cloud_base_path
+          cloud_config['path'] || 'redmine/files'
         end
 
         def s3_client
@@ -169,14 +177,6 @@ module RedmineCloudAttachmentPro
 
         def azure_container
           cloud_config['container']
-        end
-
-        def cloud_base_path
-          cloud_config['path'] || 'redmine/files'
-        end
-
-        def cloud_config
-          Redmine::Configuration[storage_backend.to_s] || {}
         end
       end
     end

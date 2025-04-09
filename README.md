@@ -74,12 +74,6 @@ production:
 
 Upload files in Redmine issues, documents, etc. They will be stored in the selected backend based on your configuration. Deleting a file will also remove it from the cloud.
 
-Set storage to either:
-
-local for filesystem storage (default Redmine behavior)
-s3 for AWS S3
-Future options like gcs or azure can be added similarly.
-
 Step 2: Install and Migrate
 
 ```bash
