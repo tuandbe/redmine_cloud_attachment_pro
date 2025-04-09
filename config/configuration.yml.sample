@@ -2,7 +2,7 @@ development:
   storage: :local
 
 production:
-  storage: :s3
+  storage: :s3 # or :gcs or :azure or :local
   s3:
     enabled: true
     access_key_id: <%= ENV["AWS_ACCESS_KEY"] %>
@@ -10,3 +10,13 @@ production:
     bucket: <%= ENV["REDMINE_FILES_ATTACHEMENT_S3_BUCKET"] %>
     region: <%= ENV["AWS_REGION"] %>
     path: <%= ENV["AWS_PATH"] %>
+  gcs:
+    project_id: "your-gcp-project"
+    bucket: "your-gcs-bucket"
+    gcs_credentials: "/path/to/your/service_account.json"
+    path: "redmine/files"
+  azure:
+    storage_account_name: "your-storage-account-name"
+    storage_access_key: "your-storage-access-key"
+    container: "your-container-name"
+    path: "redmine/files"

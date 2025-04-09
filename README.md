@@ -7,8 +7,8 @@
 - Seamless integration with Redmine's attachment system.
 - Store files in:
   - 🖥️ Local filesystem (default)
-  - ☁️ Amazon S3 (currently supported)
-  - 🌐 Future support for Google Cloud Storage and Azure Blob Storage
+  - ☁️ Amazon S3
+  - 🌐 Google Cloud Storage and Azure Blob Storage (Need to be tested)
 - Automatically uploads new attachments to the selected storage backend.
 - Secure and efficient download handling from cloud sources.
 - Clean deletion of attachments from cloud when removed from Redmine.
@@ -18,17 +18,61 @@
 
 ### Step 1: Add storage config to `config/configuration.yml`
 
+🟡 Set the active backend:
 ```yaml
-# config/configuration.yml
-default:
-  storage: s3 # or 'local'
+production:
+  storage: s3   # or gcs or azure or local
+```
+
+🔹 Amazon S3 Configuration
+```yaml
   s3:
-    access_key_id: YOUR_ACCESS_KEY
-    secret_access_key: YOUR_SECRET_KEY
-    region: YOUR_REGION
-    bucket: YOUR_BUCKET_NAME
+    access_key_id: YOUR_AWS_KEY
+    secret_access_key: YOUR_AWS_SECRET
+    region: your-region
+    bucket: your-bucket-name
+    path: redmine/files
+
+```
+
+🔹 Google Cloud Storage (GCS) Configuration
+
+```yaml
+  gcs:
+    project_id: your-gcp-project
+    gcs_credentials: /path/to/your/service-account.json
+    bucket: your-gcs-bucket
     path: redmine/files
 ```
+
+🔹 Microsoft Azure Blob Storage Configuration
+
+```yaml
+# config/configuration.yml
+  azure:
+    storage_account_name: "your-storage-account-name"
+    storage_access_key: "your-storage-access-key"
+    container: "your-container-name"
+    path: "redmine/files"
+```
+
+🔒 Tip: Place credentials in a secure path outside of version control.
+
+
+## 💾 Supported Backends
+
+| Storage        | Upload | Download | Delete | Notes                          |
+|----------------|--------|----------|--------|--------------------------------|
+| Amazon S3      | ✅     | ✅       | ✅     | Uses `aws-sdk-s3`              |
+| Google Cloud   | ✅     | ✅       | ✅     | Uses `google-cloud-storage`    |
+| Microsoft Azure| ✅     | ✅       | ✅     | Uses `azure-storage-blob`      |
+| Local Storage  | ✅     | ✅       | ✅     | Default fallback mechanism     |
+
+
+
+🧪 Test
+
+Upload files in Redmine issues, documents, etc. They will be stored in the selected backend based on your configuration. Deleting a file will also remove it from the cloud.
 
 Set storage to either:
 
