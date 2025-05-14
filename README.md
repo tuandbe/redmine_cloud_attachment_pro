@@ -1,6 +1,6 @@
 # Redmine Cloud Attachment Pro
 
-**Redmine Cloud Attachment Pro** is a versatile Redmine plugin that enables dynamic storage of file attachments in multiple backends like Local Disk, Amazon S3, and future support for Google Cloud Storage and Microsoft Azure Blob Storage.
+**Redmine Cloud Attachment Pro** is a versatile Redmine plugin that enables dynamic storage of file attachments in multiple backends like Local Disk, Amazon S3 Google Cloud Storage and Microsoft Azure Blob Storage.
 
 ## 🔧 Features
 
@@ -86,7 +86,7 @@ Step 3: Optional Rake Task
 To update existing attachment filenames to include the S3 prefix:
 
 ```bash
-bundle exec rake attachments:prefix_s3_filenames RAILS_ENV=production
+bundle exec rake attachments:prefix_cloud_filenames RAILS_ENV=production
 ```
 
 How it Works
