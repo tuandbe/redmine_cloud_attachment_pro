@@ -1,3 +1,4 @@
+# Rails.logger.info "[CloudAttachmentPro LOAD] Attempting to load AttachmentPatch file: #{__FILE__}"
 require 'aws-sdk-s3'
 require 'google/cloud/storage'
 require 'azure/storage/blob'
@@ -8,6 +9,17 @@ module RedmineCloudAttachmentPro
     def self.included(base)
       base.class_eval do
         after_destroy :delete_from_cloud
+
+        # Method to generate a direct download URL (e.g., S3 presigned URL)
+        # Returns the presigned URL if available, otherwise nil.
+        def direct_download_url(expires_in = 15.minutes)
+          # Rails.logger.info "[CloudAttachmentPro DEBUG] In direct_download_url for attachment ID: #{self.id}"
+          # Rails.logger.info "[CloudAttachmentPro DEBUG] storage_backend: #{storage_backend.inspect}"
+          # Rails.logger.info "[CloudAttachmentPro DEBUG] cloud_diskfile?: #{cloud_diskfile?.inspect}"
+          return s3_presigned_url(expires_in) if storage_backend == :s3 && cloud_diskfile?
+          # Rails.logger.info "[CloudAttachmentPro DEBUG] direct_download_url returning nil because conditions not met."
+          nil
+        end
 
         def storage_backend
           Redmine::Configuration["storage"]&.to_sym || :local
@@ -177,6 +189,24 @@ module RedmineCloudAttachmentPro
 
         def azure_container
           cloud_config['container']
+        end
+
+        def s3_presigned_url(expires_in = 15.minutes)
+          # Rails.logger.info "[CloudAttachmentPro DEBUG] In s3_presigned_url for key: #{cloud_key}"
+          unless storage_backend == :s3 && cloud_config['bucket'].present?
+            # Rails.logger.info "[CloudAttachmentPro DEBUG] s3_presigned_url returning nil early. Backend: #{storage_backend.inspect}, Bucket configured: #{cloud_config['bucket'].present?.inspect}"
+            return nil
+          end
+
+          begin
+            signer = Aws::S3::Presigner.new(client: s3_client)
+            url = signer.presigned_url(:get_object, bucket: s3_bucket, key: cloud_key, expires_in: expires_in.to_i)
+            # Rails.logger.info "[CloudAttachmentPro DEBUG] Generated S3 presigned URL: #{url}"
+            url
+          rescue => e
+            Rails.logger.error("[CloudAttachmentPro] Failed to generate S3 presigned URL for #{cloud_key}: #{e.message}")
+            nil
+          end
         end
       end
     end

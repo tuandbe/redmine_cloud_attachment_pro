@@ -1,11 +1,76 @@
 require 'redmine'
-require_relative 'lib/redmine_cloud_attachment_pro/attachment_patch'
+require_dependency 'redmine/plugin'
+# Do not require patches directly here if using to_prepare for loading
+# require_relative 'lib/redmine_cloud_attachment_pro/attachment_patch'
+
+# Rails.logger.info "[CloudAttachmentPro INIT] Registering plugin: redmine_cloud_attachment_pro. File: #{__FILE__}"
 
 Redmine::Plugin.register :redmine_cloud_attachment_pro do
-  name 'Redmine Cloud Attachment Pro plugin'
-  author 'Author name'
-  description 'RedmineCloudAttachmentPro is a flexible plugin for Redmine that enables storing attachments in multiple backends including local storage, Amazon S3, and future support for Google Cloud and Microsoft Azure. It provides seamless, configurable storage options to suit diverse deployment needs.'
-  version '0.0.1'
+  name 'Redmine Cloud Attachment Pro'
+  author 'Railsfactory & TuannNDE (modified for S3 Presigned URL)'
+  description 'A plugin for Redmine that enables storing attachments in multiple cloud backends with S3 presigned URL support.'
+  version '1.1.1' # Incremented version
   url 'https://github.com/railsfactory-sivamanikandan/redmine_cloud_attachment_pro'
-  author_url 'https://github.com/railsfactory-sivamanikandan'
+  author_url 'https://github.com/tuannde'
+
+  # Rails.logger.info "[CloudAttachmentPro INIT] Inside plugin registration block."
+
+  # Plugin settings definition (if any)
+  # settings default: { 'setting_key' => 'default_value' }, partial: 'settings/rcap_settings'
+
+  # Rails.logger.info "[CloudAttachmentPro INIT] Attempting to load and apply patches directly."
+
+  # Ensure Attachment class is loaded before patching
+  begin
+    require_dependency 'attachment' # Core Redmine class
+    patch_module_fqn = 'RedmineCloudAttachmentPro::AttachmentPatch'
+    patch_file_path = File.join(File.dirname(__FILE__), 'lib', 'redmine_cloud_attachment_pro', 'attachment_patch.rb')
+    # Rails.logger.info "[CloudAttachmentPro INIT] Requiring AttachmentPatch from: #{patch_file_path}"
+    require_dependency patch_file_path
+    # Rails.logger.info "[CloudAttachmentPro INIT] Successfully required AttachmentPatch."
+
+    patch_module = patch_module_fqn.constantize
+    target_class = Attachment
+
+    unless target_class.included_modules.include?(patch_module)
+      target_class.send(:include, patch_module)
+      # Rails.logger.info "[CloudAttachmentPro INIT] Successfully patched Attachment model with #{patch_module_fqn}."
+    # else
+      # Rails.logger.info "[CloudAttachmentPro INIT] Attachment model already includes #{patch_module_fqn}."
+    end
+  rescue LoadError => e
+    Rails.logger.error "[CloudAttachmentPro] Error loading/applying AttachmentPatch. Message: #{e.message}"
+  rescue NameError => e
+    Rails.logger.error "[CloudAttachmentPro] Error finding Attachment or AttachmentPatch module. Message: #{e.message}"
+  rescue StandardError => e
+    Rails.logger.error "[CloudAttachmentPro] General error applying AttachmentPatch. Message: #{e.message}"
+  end
+
+  # Ensure AttachmentsController is loaded before patching
+  begin
+    require_dependency 'attachments_controller' # Core Redmine class
+    controller_patch_fqn = 'RedmineCloudAttachmentPro::Patches::AttachmentsControllerPatch'
+    controller_patch_path = File.join(File.dirname(__FILE__), 'lib', 'redmine_cloud_attachment_pro', 'patches', 'attachments_controller_patch.rb')
+    # Rails.logger.info "[CloudAttachmentPro INIT] Requiring AttachmentsControllerPatch from: #{controller_patch_path}"
+    require_dependency controller_patch_path
+    # Rails.logger.info "[CloudAttachmentPro INIT] Successfully required AttachmentsControllerPatch."
+
+    patch_module = controller_patch_fqn.constantize
+    target_controller = AttachmentsController
+
+    unless target_controller.included_modules.include?(patch_module)
+      target_controller.send(:include, patch_module) # Using include, ensure patch uses `included do` or `prepended do` as appropriate
+      # Rails.logger.info "[CloudAttachmentPro INIT] Successfully patched AttachmentsController with #{controller_patch_fqn}."
+    # else
+      # Rails.logger.info "[CloudAttachmentPro INIT] AttachmentsController already includes #{controller_patch_fqn}."
+    end
+  rescue LoadError => e
+    Rails.logger.error "[CloudAttachmentPro] Error loading/applying AttachmentsControllerPatch. Message: #{e.message}"
+  rescue NameError => e
+    Rails.logger.error "[CloudAttachmentPro] Error finding AttachmentsController or its patch module. Message: #{e.message}"
+  rescue StandardError => e
+    Rails.logger.error "[CloudAttachmentPro] General error applying AttachmentsControllerPatch. Message: #{e.message}"
+  end
+
+  # Rails.logger.info "[CloudAttachmentPro INIT] Exiting plugin registration block after attempting direct patch loading."
 end
