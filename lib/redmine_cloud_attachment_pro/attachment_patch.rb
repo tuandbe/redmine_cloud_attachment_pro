@@ -1,4 +1,3 @@
-# Rails.logger.info "[CloudAttachmentPro LOAD] Attempting to load AttachmentPatch file: #{__FILE__}"
 require 'aws-sdk-s3'
 require 'google/cloud/storage'
 require 'azure/storage/blob'
@@ -13,11 +12,7 @@ module RedmineCloudAttachmentPro
         # Method to generate a direct download URL (e.g., S3 presigned URL)
         # Returns the presigned URL if available, otherwise nil.
         def direct_download_url(expires_in = 15.minutes)
-          # Rails.logger.info "[CloudAttachmentPro DEBUG] In direct_download_url for attachment ID: #{self.id}"
-          # Rails.logger.info "[CloudAttachmentPro DEBUG] storage_backend: #{storage_backend.inspect}"
-          # Rails.logger.info "[CloudAttachmentPro DEBUG] cloud_diskfile?: #{cloud_diskfile?.inspect}"
           return s3_presigned_url(expires_in) if storage_backend == :s3 && cloud_diskfile?
-          # Rails.logger.info "[CloudAttachmentPro DEBUG] direct_download_url returning nil because conditions not met."
           nil
         end
 
@@ -49,7 +44,7 @@ module RedmineCloudAttachmentPro
               download_from_cloud(tmp)
               tmp.rewind
             rescue => e
-              Rails.logger.error("[CloudAttachmentPro] Fallback to local: #{e.message}")
+              Rails.logger.error("[CloudAttachmentPro] Fallback to local for attachment #{self.id} due to cloud download error: #{e.message}")
               return local_diskfile
             end
           end.path
@@ -61,7 +56,7 @@ module RedmineCloudAttachmentPro
           begin
             delete_from_backend(cloud_key)
           rescue => e
-            Rails.logger.error("[CloudAttachmentPro] Failed to delete #{cloud_key}: #{e.message}")
+            Rails.logger.error("[CloudAttachmentPro] Failed to delete #{cloud_key} from cloud for attachment #{self.id}: #{e.message}")
           end
         end
 
@@ -101,13 +96,10 @@ module RedmineCloudAttachmentPro
           case storage_backend
           when :s3
             s3_client.delete_object(bucket: s3_bucket, key: key)
-            Rails.logger.info("[S3] Deleted #{key}")
           when :gcs
             gcs_bucket.file(key)&.delete
-            Rails.logger.info("[GCS] Deleted #{key}")
           when :azure
             azure_blob_client.delete_blob(azure_container, key)
-            Rails.logger.info("[Azure] Deleted #{key}")
           end
         end
 
@@ -192,19 +184,16 @@ module RedmineCloudAttachmentPro
         end
 
         def s3_presigned_url(expires_in = 15.minutes)
-          # Rails.logger.info "[CloudAttachmentPro DEBUG] In s3_presigned_url for key: #{cloud_key}"
           unless storage_backend == :s3 && cloud_config['bucket'].present?
-            # Rails.logger.info "[CloudAttachmentPro DEBUG] s3_presigned_url returning nil early. Backend: #{storage_backend.inspect}, Bucket configured: #{cloud_config['bucket'].present?.inspect}"
             return nil
           end
 
           begin
             signer = Aws::S3::Presigner.new(client: s3_client)
             url = signer.presigned_url(:get_object, bucket: s3_bucket, key: cloud_key, expires_in: expires_in.to_i)
-            # Rails.logger.info "[CloudAttachmentPro DEBUG] Generated S3 presigned URL: #{url}"
             url
           rescue => e
-            Rails.logger.error("[CloudAttachmentPro] Failed to generate S3 presigned URL for #{cloud_key}: #{e.message}")
+            Rails.logger.error("[CloudAttachmentPro] Failed to generate S3 presigned URL for #{cloud_key} (attachment #{self.id}): #{e.message}")
             nil
           end
         end
@@ -213,4 +202,5 @@ module RedmineCloudAttachmentPro
   end
 end
 
+# Ensure the patch is applied only once
 Attachment.include RedmineCloudAttachmentPro::AttachmentPatch unless Attachment.included_modules.include?(RedmineCloudAttachmentPro::AttachmentPatch)
