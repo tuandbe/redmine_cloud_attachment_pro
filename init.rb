@@ -72,5 +72,32 @@ Redmine::Plugin.register :redmine_cloud_attachment_pro do
     Rails.logger.error "[CloudAttachmentPro] General error applying AttachmentsControllerPatch. Message: #{e.message}"
   end
 
+  # Ensure AttachmentsHelper is loaded before patching
+  begin
+    require_dependency 'attachments_helper' # Core Redmine helper
+    helper_patch_fqn = 'RedmineCloudAttachmentPro::Patches::AttachmentsHelperPatch'
+    helper_patch_path = File.join(File.dirname(__FILE__), 'lib', 'redmine_cloud_attachment_pro', 'patches', 'attachments_helper_patch.rb')
+    require_dependency helper_patch_path
+
+    patch_module = helper_patch_fqn.constantize
+    target_helper = AttachmentsHelper
+
+    unless target_helper.included_modules.include?(patch_module)
+      target_helper.send(:include, patch_module)
+      Rails.logger.debug "[CloudAttachmentPro] Successfully patched AttachmentsHelper with #{helper_patch_fqn}."
+    end
+
+    # Also patch ApplicationHelper for thumbnail_path method
+    ApplicationHelper.send(:include, patch_module) unless ApplicationHelper.included_modules.include?(patch_module)
+  rescue LoadError => e
+    Rails.logger.error "[CloudAttachmentPro] Error loading/applying AttachmentsHelperPatch. Message: #{e.message}"
+  rescue NameError => e
+    Rails.logger.error "[CloudAttachmentPro] Error finding AttachmentsHelper or its patch module. Message: #{e.message}"
+  rescue StandardError => e
+    Rails.logger.error "[CloudAttachmentPro] General error applying AttachmentsHelperPatch. Message: #{e.message}"
+  end
+
+  # Note: optimization_test.rb moved to test/ directory
+
   # Rails.logger.info "[CloudAttachmentPro INIT] Exiting plugin registration block after attempting direct patch loading."
 end
