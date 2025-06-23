@@ -12,7 +12,7 @@ module RedmineCloudAttachmentPro
           
           # Add direct download URL for cloud attachments if available
           if attachment.respond_to?(:direct_download_url) && attachment.respond_to?(:cloud_diskfile?) && attachment.cloud_diskfile?
-            expires_in = Redmine::Configuration.dig('cloud_attachment_pro', 'presigned_url_expires_in')&.to_i&.minutes || 15.minutes
+            expires_in = attachment.cloud_expiry_time
             direct_url = attachment.direct_download_url(expires_in)
             if direct_url
               api.direct_content_url direct_url

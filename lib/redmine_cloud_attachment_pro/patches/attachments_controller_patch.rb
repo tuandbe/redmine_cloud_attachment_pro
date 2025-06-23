@@ -17,7 +17,7 @@ module RedmineCloudAttachmentPro
 
           if @attachment&.respond_to?(:direct_download_url) && @attachment.respond_to?(:cloud_diskfile?) && @attachment.cloud_diskfile?
             # Get configurable expiry time (default 15 minutes)
-            expires_in = Redmine::Configuration.dig('cloud_attachment_pro', 'presigned_url_expires_in')&.to_i&.minutes || 15.minutes
+            expires_in = @attachment.cloud_expiry_time
             presigned_url_value = @attachment.direct_download_url(expires_in)
 
             if presigned_url_value
@@ -82,7 +82,7 @@ module RedmineCloudAttachmentPro
                   render :action => 'file'
                 elsif @attachment.is_image?
                   # For images, we can directly show the cloud URL if available
-                  expires_in = Redmine::Configuration.dig('cloud_attachment_pro', 'presigned_url_expires_in')&.to_i&.minutes || 15.minutes
+                  expires_in = @attachment.cloud_expiry_time
                   @direct_url = @attachment.direct_download_url(expires_in)
                   Rails.logger.debug "[CloudAttachmentPro] Using direct cloud URL for image display: #{@direct_url.present?}"
                   render :action => 'image'

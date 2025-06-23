@@ -150,6 +150,13 @@ module RedmineCloudAttachmentPro
           end
         end
 
+        # Helper method to get expiry time from configuration
+        def cloud_expiry_time
+          (Redmine::Configuration['cloud_attachment_pro'] && 
+           Redmine::Configuration['cloud_attachment_pro']['presigned_url_expires_in']) ? 
+           Redmine::Configuration['cloud_attachment_pro']['presigned_url_expires_in'].to_i.minutes : 15.minutes
+        end
+
         # Check if attachment is stored in cloud
         def cloud_diskfile?
           disk_filename.to_s.match?(/^(s3|gcs|azure)_[^_]+_/)
